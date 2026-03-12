@@ -48,6 +48,23 @@ class TaskManager:
         for tid, _ in finished[:-MAX_FINISHED_TASKS]:
             del self._tasks[tid]
 
+    def _notify_telegram(self, message: str):
+        """发送 Telegram 通知"""
+        import urllib.request
+        import json
+        try:
+            token = "8793608547:AAFVGk0HCJCIboSJpJGyykR47g5cWR_O3lY"
+            chat_id = "8375509339"
+            payload = json.dumps({"chat_id": chat_id, "text": message}).encode()
+            req = urllib.request.Request(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+            )
+            urllib.request.urlopen(req, timeout=5)
+        except Exception as e:
+            logger.warning("Telegram 通知发送失败: %s", e)
+
     def _finish_task(self, task_id, status, error=None):
         """统一结束任务的状态更新"""
         with self._lock:
@@ -58,6 +75,19 @@ class TaskManager:
                 if error:
                     task["error"] = str(error)
                 self._cleanup_finished()
+
+        # 失败时发 Telegram 通知
+        if status == "failed" and task:
+            email = task.get("email", "unknown")
+            task_type = task.get("type", "unknown")
+            err_msg = str(error) if error else "未知错误"
+            self._notify_telegram(
+                f"❌ family-bot 任务失败\n\n"
+                f"账号: {email}\n"
+                f"类型: {task_type}\n"
+                f"错误: {err_msg}\n"
+                f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            )
 
     def get_all_tasks(self):
         with self._lock:

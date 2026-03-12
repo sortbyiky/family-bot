@@ -10,7 +10,7 @@ DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 # 浏览器配置
 BROWSER_HEADLESS = os.environ.get("BROWSER_HEADLESS", "false").lower() in ("true", "1", "yes")
-BROWSER_SLOW_MO = int(os.environ.get("BROWSER_SLOW_MO", "500"))
+BROWSER_SLOW_MO = int(os.environ.get("BROWSER_SLOW_MO", "100"))
 BROWSER_CHANNEL = os.environ.get("BROWSER_CHANNEL", "chrome")
 BROWSER_USER_DATA_DIR = os.path.join(DATA_DIR, "chrome_profiles")
 
