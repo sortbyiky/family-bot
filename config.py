@@ -22,9 +22,27 @@ GOOGLE_SIGNIN_URL = "https://accounts.google.com/signin"
 GEMINI_URL = "https://gemini.google.com/gems/create?hl=en-US&pli=1"
 GMAIL_URL = "https://mail.google.com/"
 
-# Web 认证配置（设置密码后启用 Basic Auth）
+# Web 认证配置
 WEB_AUTH_USERNAME = os.environ.get("WEB_AUTH_USERNAME", "admin")
-WEB_AUTH_PASSWORD = os.environ.get("WEB_AUTH_PASSWORD", "")
+_PASSWORD_FILE = os.path.join(DATA_DIR, "password.txt")
+
+def _load_password():
+    """优先读 data/password.txt，没有就用环境变量"""
+    if os.path.exists(_PASSWORD_FILE):
+        with open(_PASSWORD_FILE, "r") as f:
+            pwd = f.read().strip()
+            if pwd:
+                return pwd
+    return os.environ.get("WEB_AUTH_PASSWORD", "")
+
+def save_password(new_password: str):
+    """将新密码写入 data/password.txt"""
+    with open(_PASSWORD_FILE, "w") as f:
+        f.write(new_password.strip())
+    global WEB_AUTH_PASSWORD
+    WEB_AUTH_PASSWORD = new_password.strip()
+
+WEB_AUTH_PASSWORD = _load_password()
 
 # 并发任务上限
 MAX_CONCURRENT_TASKS = int(os.environ.get("MAX_CONCURRENT_TASKS", "5"))
