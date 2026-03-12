@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, request, Response
+from flask import Flask, request, redirect, url_for, session
 
 
 def _get_secret_key():
@@ -16,18 +16,6 @@ def _get_secret_key():
     return key
 
 
-def _check_auth(username, password):
-    from config import WEB_AUTH_USERNAME, WEB_AUTH_PASSWORD
-    return username == WEB_AUTH_USERNAME and password == WEB_AUTH_PASSWORD
-
-
-def _require_auth():
-    return Response(
-        "需要登录才能访问", 401,
-        {"WWW-Authenticate": 'Basic realm="Google Family Bot"'},
-    )
-
-
 def create_app():
     app = Flask(__name__)
     app.secret_key = _get_secret_key()
@@ -37,13 +25,13 @@ def create_app():
     if WEB_AUTH_PASSWORD:
         @app.before_request
         def auth_check():
-            # 静态文件不需要认证
-            if request.path.startswith("/static/"):
+            # 放行：登录页、登录接口、静态资源
+            if request.path in ("/login", "/login/") or request.path.startswith("/static/"):
                 return None
-            auth = request.authorization
-            if not auth or not _check_auth(auth.username, auth.password):
-                return _require_auth()
+            if not session.get("authenticated"):
+                return redirect(url_for("auth.login", next=request.path))
 
+    from web.routes.auth import bp as auth_bp
     from web.routes.dashboard import bp as dashboard_bp
     from web.routes.parent import bp as parent_bp
     from web.routes.member import bp as member_bp
@@ -51,6 +39,7 @@ def create_app():
     from web.routes.config import bp as config_bp
     from web.routes.sms import bp as sms_bp
 
+    app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(parent_bp, url_prefix="/parent")
     app.register_blueprint(member_bp, url_prefix="/member")
