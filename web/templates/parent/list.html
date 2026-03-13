@@ -94,6 +94,11 @@
                                 <a href="/family/{{ p.id }}/members" class="btn btn-outline-primary btn-xs" title="管理家庭组">
                                     <i class="bi bi-house-heart me-1"></i>家庭组
                                 </a>
+                                <form method="POST" action="/parent/open_browser/{{ p.id }}" class="d-inline">
+                                    <button type="submit" class="btn btn-outline-secondary btn-xs" title="打开浏览器手动登录">
+                                        <i class="bi bi-globe me-1"></i>浏览器
+                                    </button>
+                                </form>
                                 <button class="btn btn-outline-secondary btn-xs" data-bs-toggle="modal" data-bs-target="#editModal{{ p.id }}" title="编辑凭据">
                                     <i class="bi bi-key me-1"></i>凭据
                                 </button>

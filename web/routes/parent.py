@@ -114,6 +114,23 @@ def get_secret(parent_id):
         })
 
 
+@bp.route("/open_browser/<int:parent_id>", methods=["POST"])
+def open_browser(parent_id):
+    """打开家长浏览器（首次手动登录 Google 存 cookie）"""
+    from web.task_manager import task_manager
+    with get_session() as session:
+        p = session.get(Parent, parent_id)
+        if not p:
+            flash("家长不存在", "danger")
+            return redirect(url_for("parent.list_parents"))
+        if not p.password:
+            flash("请先配置家长密码", "danger")
+            return redirect(url_for("parent.list_parents"))
+        task_id = task_manager.run_open_browser_parent(p.id, p.email)
+        flash(f"已启动家长 {p.email} 的浏览器 (任务ID: {task_id})，请手动完成 Google 登录", "info")
+    return redirect(url_for("parent.list_parents"))
+
+
 @bp.route("/delete/<int:parent_id>", methods=["POST"])
 def delete_parent(parent_id):
     with get_session() as session:

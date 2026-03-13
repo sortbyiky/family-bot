@@ -170,6 +170,21 @@ class TaskManager:
             logger.exception("打开浏览器失败: member_id=%s", member_id)
             self._finish_task(task_id, "failed", error=e)
 
+    def run_open_browser_parent(self, parent_id: int, email: str):
+        """打开家长浏览器并自动登录（用于首次手动登录存 cookie）"""
+        task_id = self._create_task("open_browser_parent", parent_id, email)
+        self._pool.submit(self._exec_open_browser_parent, task_id, parent_id)
+        return task_id
+
+    def _exec_open_browser_parent(self, task_id: str, parent_id: int):
+        from automation.open_browser import open_browser_for_parent
+        try:
+            asyncio.run(open_browser_for_parent(parent_id))
+            self._finish_task(task_id, "done")
+        except Exception as e:
+            logger.exception("打开家长浏览器失败: parent_id=%s", parent_id)
+            self._finish_task(task_id, "failed", error=e)
+
     def run_antigravity(self, member_id: int, email: str, oauth_url: str):
         """执行 Antigravity OAuth 登录"""
         task_id = self._create_task("antigravity", member_id, email, oauth_url=oauth_url)
