@@ -1,64 +1,79 @@
 {% extends "base.html" %}
-{% block title %}家庭组管理 - Family Bot{% endblock %}
+{% block title %}家庭组 - Family Bot{% endblock %}
 
 {% block content %}
 <div class="page-header d-flex justify-content-between align-items-center">
     <h4><i class="bi bi-house-heart me-2" style="color:#667eea;"></i>家庭组管理</h4>
 </div>
 
+<div class="alert alert-info">
+    <i class="bi bi-info-circle me-2"></i>
+    点击下方链接，在 Google 页面中手动完成成员管理操作（需已在 Chrome 中登录对应家长账号）。
+</div>
+
 {% if parents %}
 <div class="card">
     <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead>
-                    <tr>
-                        <th>家长账号</th>
-                        <th>昵称</th>
-                        <th class="text-center">凭据状态</th>
-                        <th class="text-center">操作</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for p in parents %}
-                    <tr>
-                        <td>
-                            <div class="d-flex align-items-center gap-2">
-                                <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.85rem;">
-                                    {{ p.email[0]|upper }}
-                                </div>
-                                <div>
-                                    <div class="fw-semibold" style="font-size:.9rem;">{{ p.email }}</div>
-                                    <div class="text-muted" style="font-size:.75rem;">ID: {{ p.id }}</div>
-                                </div>
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>家长账号</th>
+                    <th>昵称</th>
+                    <th>快捷操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in parents %}
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div style="width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.85rem;">
+                                {{ p.email[0]|upper }}
                             </div>
-                        </td>
-                        <td class="text-muted">{{ p.nickname }}</td>
-                        <td class="text-center">
-                            {% if p.has_creds %}
-                            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>已配置</span>
-                            {% else %}
-                            <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>未配置</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-center">
-                            {% if p.has_creds %}
-                            <a href="/family/{{ p.id }}/members" class="btn btn-primary btn-xs">
-                                <i class="bi bi-people me-1"></i>管理家庭组
+                            <div>
+                                <div class="fw-semibold" style="font-size:.88rem;">{{ p.email }}</div>
+                                <div class="text-muted" style="font-size:.73rem;">ID: {{ p.id }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="text-muted">{{ p.nickname }}</td>
+                    <td>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <a href="{{ urls.members }}" target="_blank" class="btn btn-outline-primary btn-xs">
+                                <i class="bi bi-people me-1"></i>查看成员 / 踢出
                             </a>
-                            {% else %}
-                            <a href="/parent/" class="btn btn-outline-warning btn-xs">
-                                <i class="bi bi-key me-1"></i>先配置凭据
+                            <a href="{{ urls.invite }}" target="_blank" class="btn btn-outline-success btn-xs">
+                                <i class="bi bi-person-plus me-1"></i>邀请成员
                             </a>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                            <a href="{{ urls.settings }}" target="_blank" class="btn btn-outline-secondary btn-xs">
+                                <i class="bi bi-gear me-1"></i>家庭组设置
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card mt-3">
+    <div class="card-body py-3">
+        <div class="fw-semibold mb-2 text-muted" style="font-size:.85rem;"><i class="bi bi-link-45deg me-1"></i>Google 家庭组相关链接</div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ urls.members }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-people me-1"></i>成员列表 & 踢出
+            </a>
+            <a href="{{ urls.invite }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-person-plus me-1"></i>发送邀请
+            </a>
+            <a href="{{ urls.settings }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-house-heart me-1"></i>家庭组主页
+            </a>
         </div>
     </div>
 </div>
+
 {% else %}
 <div class="card">
     <div class="card-body empty-state">
