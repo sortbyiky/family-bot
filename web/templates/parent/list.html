@@ -14,22 +14,30 @@
         <div class="card-body">
             <form method="POST" action="/parent/add">
                 <div class="row g-3 align-items-end">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label fw-semibold">邮箱 <span class="text-danger">*</span></label>
                         <div class="input-group">
                             <span class="input-group-text bg-white"><i class="bi bi-envelope"></i></span>
                             <input type="email" name="email" class="form-control" required placeholder="parent@gmail.com">
                         </div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label fw-semibold">昵称</label>
                         <input type="text" name="nickname" class="form-control" placeholder="可选">
                     </div>
-                    <div class="col-md-2">
-                        <label class="form-label fw-semibold">最大成员数</label>
+                    <div class="col-md-1">
+                        <label class="form-label fw-semibold">成员上限</label>
                         <input type="number" name="max_members" class="form-control" value="5" min="1">
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">密码 <small class="text-muted">(可选)</small></label>
+                        <input type="password" name="password" class="form-control" placeholder="Google 登录密码" autocomplete="new-password">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">2FA 密钥 <small class="text-muted">(可选)</small></label>
+                        <input type="text" name="totp_secret" class="form-control" placeholder="TOTP 密钥">
+                    </div>
+                    <div class="col-md-2">
                         <button type="submit" class="btn btn-success w-100"><i class="bi bi-check-lg me-1"></i>确认添加</button>
                     </div>
                 </div>
@@ -49,6 +57,7 @@
                         <th>昵称</th>
                         <th class="text-center">成员上限</th>
                         <th class="text-center">当前成员</th>
+                        <th class="text-center">凭据</th>
                         <th>创建时间</th>
                         <th class="text-center">操作</th>
                     </tr>
@@ -72,11 +81,26 @@
                         <td class="text-center">
                             <span class="badge {% if p.member_count > 0 %}badge-joined{% else %}bg-light text-muted{% endif %} fw-bold">{{ p.member_count }}</span>
                         </td>
+                        <td class="text-center">
+                            {% if p.has_creds %}
+                            <span class="badge bg-success" title="已配置密码和2FA"><i class="bi bi-shield-check"></i> 已配置</span>
+                            {% else %}
+                            <span class="badge bg-warning text-dark" title="未配置登录凭据"><i class="bi bi-shield-exclamation"></i> 未配置</span>
+                            {% endif %}
+                        </td>
                         <td><small class="text-muted">{{ p.created_at }}</small></td>
                         <td class="text-center">
-                            <button class="btn btn-outline-danger btn-xs" data-bs-toggle="modal" data-bs-target="#delModal{{ p.id }}">
-                                <i class="bi bi-trash3 me-1"></i>删除
-                            </button>
+                            <div class="d-flex gap-1 justify-content-center flex-wrap">
+                                <a href="/family/{{ p.id }}/members" class="btn btn-outline-primary btn-xs" title="管理家庭组">
+                                    <i class="bi bi-house-heart me-1"></i>家庭组
+                                </a>
+                                <button class="btn btn-outline-secondary btn-xs" data-bs-toggle="modal" data-bs-target="#editModal{{ p.id }}" title="编辑凭据">
+                                    <i class="bi bi-key me-1"></i>凭据
+                                </button>
+                                <button class="btn btn-outline-danger btn-xs" data-bs-toggle="modal" data-bs-target="#delModal{{ p.id }}">
+                                    <i class="bi bi-trash3 me-1"></i>删除
+                                </button>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -86,7 +110,53 @@
     </div>
 </div>
 
+<!-- 编辑凭据弹窗 -->
 {% for p in parents %}
+<div class="modal fade" id="editModal{{ p.id }}" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title"><i class="bi bi-key text-warning me-2"></i>编辑凭据 — {{ p.email }}</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="/parent/edit/{{ p.id }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">昵称</label>
+                        <input type="text" name="nickname" class="form-control" value="{{ p.nickname if p.nickname != '-' else '' }}" placeholder="可选">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Google 密码</label>
+                        <div class="input-group">
+                            <input type="password" name="password" id="pwd_edit_{{ p.id }}" class="form-control" placeholder="留空则不修改" autocomplete="new-password">
+                            <button type="button" class="btn btn-outline-secondary" onclick="togglePwdEdit('pwd_edit_{{ p.id }}')">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                        {% if p.has_creds %}
+                        <div class="form-text">
+                            <span class="text-success"><i class="bi bi-check-circle me-1"></i>当前已配置密码</span>
+                            <button type="button" class="btn btn-link btn-sm p-0 ms-2" onclick="loadSecret({{ p.id }})">查看当前密码</button>
+                        </div>
+                        <div id="secret_{{ p.id }}" class="form-text text-muted" style="display:none;"></div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label fw-semibold">2FA 密钥 (TOTP)</label>
+                        <input type="text" name="totp_secret" class="form-control" placeholder="留空则不修改">
+                        <div class="form-text">格式示例：JBSWY3DPEHPK3PXP（Base32 密钥，不含空格）</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i>保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认弹窗 -->
 <div class="modal fade" id="delModal{{ p.id }}" tabindex="-1">
     <div class="modal-dialog modal-sm modal-dialog-centered">
         <div class="modal-content">
@@ -119,4 +189,23 @@
     </div>
 </div>
 {% endif %}
+
+<script>
+function togglePwdEdit(id) {
+    const inp = document.getElementById(id);
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+function loadSecret(parentId) {
+    const el = document.getElementById('secret_' + parentId);
+    el.style.display = 'block';
+    el.textContent = '加载中...';
+    fetch('/parent/secret/' + parentId)
+        .then(r => r.json())
+        .then(data => {
+            el.innerHTML = '密码: <code>' + (data.password || '(空)') + '</code>  2FA: <code>' + (data.totp_secret || '(空)') + '</code>';
+        })
+        .catch(() => { el.textContent = '加载失败'; });
+}
+</script>
 {% endblock %}

@@ -12,6 +12,9 @@ SessionLocal = sessionmaker(bind=engine)
 def init_db():
     """初始化数据库，建表"""
     Base.metadata.create_all(engine)
+    # 执行增量迁移（给已有表添加新列等）
+    from db.migrate import run_migrations
+    run_migrations()
 
 
 @contextmanager

@@ -221,5 +221,242 @@ class TaskManager:
             logger.exception("成员流程执行失败: task_id=%s", task_id)
             self._finish_task(task_id, "failed", error=e)
 
+    # ───────────────── 家庭组管理任务 ─────────────────
+
+    def _create_parent_task(self, task_type, parent_id, email, **extra):
+        """创建家长相关任务"""
+        task_id = self._gen_id()
+        with self._lock:
+            self._tasks[task_id] = {
+                "type": task_type,
+                "parent_id": parent_id,
+                "email": email,
+                "status": "running",
+                "started_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "finished_at": None,
+                "error": None,
+                "result": None,
+                **extra,
+            }
+        return task_id
+
+    def _finish_parent_task(self, task_id, status, result=None, error=None):
+        """结束家长任务并存储结果"""
+        with self._lock:
+            task = self._tasks.get(task_id)
+            if task:
+                task["status"] = status
+                task["finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                if result is not None:
+                    task["result"] = result
+                if error:
+                    task["error"] = str(error)
+                self._cleanup_finished()
+
+    def run_family_list(self, parent_id: int, email: str) -> str:
+        """列出家庭组成员"""
+        task_id = self._create_parent_task("family_list", parent_id, email)
+        self._pool.submit(self._exec_family_list, task_id, parent_id)
+        return task_id
+
+    def _exec_family_list(self, task_id: str, parent_id: int):
+        from automation.family_manage import list_family_members
+        from automation.browser import launch_parent_context
+        from automation.google_login import google_login
+        from db.database import get_session
+        from db.models import Parent
+        from utils.crypto import decrypt_safe
+
+        try:
+            with get_session() as session:
+                parent = session.get(Parent, parent_id)
+                if not parent:
+                    self._finish_parent_task(task_id, "failed", error="家长不存在")
+                    return
+                email = parent.email
+                password = decrypt_safe(parent.password) if parent.password else ""
+                totp = decrypt_safe(parent.totp_secret) if parent.totp_secret else ""
+
+            if not password:
+                self._finish_parent_task(task_id, "failed", error="家长未设置密码，请先在家长管理页面编辑凭据")
+                return
+
+            async def _run():
+                from playwright.async_api import async_playwright
+                async with async_playwright() as p:
+                    context, page = await launch_parent_context(p, parent_id)
+                    try:
+                        login_ok = await google_login(page, email, password, totp)
+                        if not login_ok:
+                            return None, "Google 登录失败"
+                        members = await list_family_members(page)
+                        return members, None
+                    finally:
+                        await context.close()
+
+            members, err = asyncio.run(_run())
+            if err:
+                self._finish_parent_task(task_id, "failed", error=err)
+            else:
+                self._finish_parent_task(task_id, "done", result=members)
+        except Exception as e:
+            logger.exception("列出家庭组成员失败: parent_id=%s", parent_id)
+            self._finish_parent_task(task_id, "failed", error=e)
+
+    def run_family_kick(self, parent_id: int, email: str, target: str) -> str:
+        """踢出家庭组成员"""
+        task_id = self._create_parent_task("family_kick", parent_id, email, target=target)
+        self._pool.submit(self._exec_family_kick, task_id, parent_id, target)
+        return task_id
+
+    def _exec_family_kick(self, task_id: str, parent_id: int, target: str):
+        from automation.family_manage import kick_family_member
+        from automation.browser import launch_parent_context
+        from automation.google_login import google_login
+        from db.database import get_session
+        from db.models import Parent
+        from utils.crypto import decrypt_safe
+
+        try:
+            with get_session() as session:
+                parent = session.get(Parent, parent_id)
+                if not parent:
+                    self._finish_parent_task(task_id, "failed", error="家长不存在")
+                    return
+                email = parent.email
+                password = decrypt_safe(parent.password) if parent.password else ""
+                totp = decrypt_safe(parent.totp_secret) if parent.totp_secret else ""
+
+            if not password:
+                self._finish_parent_task(task_id, "failed", error="家长未设置密码")
+                return
+
+            async def _run():
+                from playwright.async_api import async_playwright
+                async with async_playwright() as p:
+                    context, page = await launch_parent_context(p, parent_id)
+                    try:
+                        login_ok = await google_login(page, email, password, totp)
+                        if not login_ok:
+                            return False, "Google 登录失败"
+                        ok = await kick_family_member(page, target)
+                        return ok, None if ok else "踢出操作未成功"
+                    finally:
+                        await context.close()
+
+            ok, err = asyncio.run(_run())
+            if err:
+                self._finish_parent_task(task_id, "failed", error=err)
+            else:
+                self._finish_parent_task(task_id, "done", result={"success": ok})
+        except Exception as e:
+            logger.exception("踢出成员失败: parent_id=%s target=%s", parent_id, target)
+            self._finish_parent_task(task_id, "failed", error=e)
+
+    def run_family_invite(self, parent_id: int, email: str, target_email: str) -> str:
+        """邀请新成员"""
+        task_id = self._create_parent_task("family_invite", parent_id, email, target=target_email)
+        self._pool.submit(self._exec_family_invite, task_id, parent_id, target_email)
+        return task_id
+
+    def _exec_family_invite(self, task_id: str, parent_id: int, target_email: str):
+        from automation.family_manage import invite_family_member
+        from automation.browser import launch_parent_context
+        from automation.google_login import google_login
+        from db.database import get_session
+        from db.models import Parent
+        from utils.crypto import decrypt_safe
+
+        try:
+            with get_session() as session:
+                parent = session.get(Parent, parent_id)
+                if not parent:
+                    self._finish_parent_task(task_id, "failed", error="家长不存在")
+                    return
+                email = parent.email
+                password = decrypt_safe(parent.password) if parent.password else ""
+                totp = decrypt_safe(parent.totp_secret) if parent.totp_secret else ""
+
+            if not password:
+                self._finish_parent_task(task_id, "failed", error="家长未设置密码")
+                return
+
+            async def _run():
+                from playwright.async_api import async_playwright
+                async with async_playwright() as p:
+                    context, page = await launch_parent_context(p, parent_id)
+                    try:
+                        login_ok = await google_login(page, email, password, totp)
+                        if not login_ok:
+                            return False, "Google 登录失败"
+                        ok = await invite_family_member(page, target_email)
+                        return ok, None if ok else "邀请操作未成功"
+                    finally:
+                        await context.close()
+
+            ok, err = asyncio.run(_run())
+            if err:
+                self._finish_parent_task(task_id, "failed", error=err)
+            else:
+                self._finish_parent_task(task_id, "done", result={"success": ok})
+        except Exception as e:
+            logger.exception("邀请成员失败: parent_id=%s target=%s", parent_id, target_email)
+            self._finish_parent_task(task_id, "failed", error=e)
+
+    def run_family_cancel_invite(self, parent_id: int, email: str, target: str) -> str:
+        """取消未接受的邀请"""
+        task_id = self._create_parent_task("family_cancel_invite", parent_id, email, target=target)
+        self._pool.submit(self._exec_family_cancel_invite, task_id, parent_id, target)
+        return task_id
+
+    def _exec_family_cancel_invite(self, task_id: str, parent_id: int, target: str):
+        from automation.family_manage import cancel_family_invite
+        from automation.browser import launch_parent_context
+        from automation.google_login import google_login
+        from db.database import get_session
+        from db.models import Parent
+        from utils.crypto import decrypt_safe
+
+        try:
+            with get_session() as session:
+                parent = session.get(Parent, parent_id)
+                if not parent:
+                    self._finish_parent_task(task_id, "failed", error="家长不存在")
+                    return
+                email = parent.email
+                password = decrypt_safe(parent.password) if parent.password else ""
+                totp = decrypt_safe(parent.totp_secret) if parent.totp_secret else ""
+
+            if not password:
+                self._finish_parent_task(task_id, "failed", error="家长未设置密码")
+                return
+
+            async def _run():
+                from playwright.async_api import async_playwright
+                async with async_playwright() as p:
+                    context, page = await launch_parent_context(p, parent_id)
+                    try:
+                        login_ok = await google_login(page, email, password, totp)
+                        if not login_ok:
+                            return False, "Google 登录失败"
+                        ok = await cancel_family_invite(page, target)
+                        return ok, None if ok else "取消邀请操作未成功"
+                    finally:
+                        await context.close()
+
+            ok, err = asyncio.run(_run())
+            if err:
+                self._finish_parent_task(task_id, "failed", error=err)
+            else:
+                self._finish_parent_task(task_id, "done", result={"success": ok})
+        except Exception as e:
+            logger.exception("取消邀请失败: parent_id=%s target=%s", parent_id, target)
+            self._finish_parent_task(task_id, "failed", error=e)
+
+    def get_task_result(self, task_id: str) -> dict:
+        """获取任务详情（含 result）"""
+        with self._lock:
+            return dict(self._tasks.get(task_id, {}))
+
 
 task_manager = TaskManager()

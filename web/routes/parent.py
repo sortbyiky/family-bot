@@ -1,9 +1,10 @@
 import logging
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from sqlalchemy import func
 from db.database import get_session
 from db.models import Parent, Member
+from utils.crypto import encrypt, decrypt_safe
 
 bp = Blueprint("parent", __name__)
 logger = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ def list_parents():
                 "nickname": p.nickname or "-",
                 "max_members": p.max_members,
                 "member_count": member_count,
+                "has_creds": bool(p.password),
                 "created_at": p.created_at.strftime("%Y-%m-%d %H:%M") if p.created_at else "-",
             })
         return render_template("parent/list.html", parents=data)
@@ -53,6 +55,9 @@ def add_parent():
         flash("最大成员数必须为数字", "danger")
         return redirect(url_for("parent.list_parents"))
 
+    password = request.form.get("password", "").strip()
+    totp_secret = request.form.get("totp_secret", "").strip()
+
     with get_session() as session:
         exists = session.query(Parent).filter_by(email=email).first()
         if exists:
@@ -63,11 +68,50 @@ def add_parent():
             email=email,
             nickname=nickname or None,
             max_members=max_members_int,
+            password=encrypt(password) if password else None,
+            totp_secret=encrypt(totp_secret) if totp_secret else None,
         )
         session.add(p)
         session.commit()
         flash(f"家长 {email} 添加成功", "success")
     return redirect(url_for("parent.list_parents"))
+
+
+@bp.route("/edit/<int:parent_id>", methods=["POST"])
+def edit_parent(parent_id):
+    """编辑家长凭据（密码、2FA）"""
+    password = request.form.get("password", "").strip()
+    totp_secret = request.form.get("totp_secret", "").strip()
+    nickname = request.form.get("nickname", "").strip()
+
+    with get_session() as session:
+        p = session.get(Parent, parent_id)
+        if not p:
+            flash("家长不存在", "danger")
+            return redirect(url_for("parent.list_parents"))
+
+        if nickname is not None:
+            p.nickname = nickname or None
+        if password:
+            p.password = encrypt(password)
+        if totp_secret:
+            p.totp_secret = encrypt(totp_secret)
+        session.commit()
+        flash(f"家长 {p.email} 凭据已更新", "success")
+    return redirect(url_for("parent.list_parents"))
+
+
+@bp.route("/secret/<int:parent_id>")
+def get_secret(parent_id):
+    """按需返回家长的解密密码和 TOTP 密钥"""
+    with get_session() as session:
+        p = session.get(Parent, parent_id)
+        if not p:
+            return jsonify({"error": "家长不存在"}), 404
+        return jsonify({
+            "password": decrypt_safe(p.password) if p.password else "",
+            "totp_secret": decrypt_safe(p.totp_secret) if p.totp_secret else "",
+        })
 
 
 @bp.route("/delete/<int:parent_id>", methods=["POST"])

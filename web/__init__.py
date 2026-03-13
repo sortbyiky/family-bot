@@ -38,6 +38,7 @@ def create_app():
     from web.routes.task import bp as task_bp
     from web.routes.config import bp as config_bp
     from web.routes.sms import bp as sms_bp
+    from web.routes.family import bp as family_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -46,6 +47,7 @@ def create_app():
     app.register_blueprint(task_bp, url_prefix="/task")
     app.register_blueprint(config_bp, url_prefix="/config")
     app.register_blueprint(sms_bp, url_prefix="/sms")
+    app.register_blueprint(family_bp, url_prefix="/family")
 
     @app.errorhandler(404)
     def not_found(e):

@@ -12,6 +12,8 @@ class Parent(Base):
     email = Column(Text, unique=True, nullable=False)
     nickname = Column(Text)
     max_members = Column(Integer, default=5)
+    password = Column(Text)       # 加密存储，用于登录 Google 账号
+    totp_secret = Column(Text)    # 加密存储，2FA 密钥
     created_at = Column(DateTime, default=datetime.now)
 
     members = relationship("Member", back_populates="parent", cascade="all, delete-orphan")
