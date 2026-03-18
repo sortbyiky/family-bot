@@ -103,14 +103,33 @@ def edit_parent(parent_id):
 
 @bp.route("/secret/<int:parent_id>")
 def get_secret(parent_id):
-    """按需返回家长的解密密码和 TOTP 密钥"""
+    """返回家长的解密密码、TOTP 密钥、实时验证码和剩余秒数"""
+    import time
+    import pyotp
+
     with get_session() as session:
         p = session.get(Parent, parent_id)
         if not p:
             return jsonify({"error": "家长不存在"}), 404
+
+        password = decrypt_safe(p.password) if p.password else ""
+        totp_secret = decrypt_safe(p.totp_secret) if p.totp_secret else ""
+
+        totp_code = ""
+        remaining = 0
+        if totp_secret:
+            try:
+                totp = pyotp.TOTP(totp_secret)
+                totp_code = totp.now()
+                remaining = totp.interval - (int(time.time()) % totp.interval)
+            except Exception:
+                totp_code = "密钥无效"
+
         return jsonify({
-            "password": decrypt_safe(p.password) if p.password else "",
-            "totp_secret": decrypt_safe(p.totp_secret) if p.totp_secret else "",
+            "password": password,
+            "totp_secret": totp_secret,
+            "totp_code": totp_code,
+            "remaining": remaining,
         })
 
 

@@ -4,18 +4,19 @@
 {% block extra_head %}
 <style>
     .toolbar { background: #fff; border-radius: 12px; padding: 14px 20px; margin-bottom: 16px; box-shadow: var(--card-shadow); }
-    .member-email { cursor: pointer; color: #667eea; font-weight: 600; font-size: .85rem; text-decoration: none; transition: color .15s; }
+    .member-email { cursor: pointer; color: #667eea; font-weight: 600; font-size: .82rem; text-decoration: none; transition: color .15s; white-space: nowrap; }
     .member-email:hover { color: #5a6fd6; text-decoration: underline; }
     .status-pill { font-size: .72rem; padding: 4px 10px; border-radius: 20px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
-    .remark-text { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: middle; font-size: .78rem; color: #6b7280; }
+    .remark-text { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: middle; font-size: .78rem; color: #6b7280; }
     .error-text { font-size: .78rem; }
-    .ops-group { display: flex; gap: 4px; flex-wrap: wrap; }
+    .ops-group { display: flex; gap: 3px; flex-wrap: wrap; }
     .add-form-card { border-left: 3px solid #10b981; }
-    .table th, .table td { font-size: .78rem; padding: 8px 6px; white-space: nowrap; }
-    .table td:nth-child(2) { white-space: normal; word-break: break-all; max-width: 200px; }
-    .table td:nth-child(5), .table td:nth-child(6) { white-space: normal; max-width: 120px; }
-    .table td:nth-child(7) { min-width: 80px; }
-    .btn-xs { font-size: .68rem !important; padding: 2px 6px !important; }
+    .table th, .table td { font-size: .78rem; padding: 6px 5px; vertical-align: middle; }
+    .table th { white-space: nowrap; background: #f8f9fc; }
+    .table td:nth-child(2) { white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+    .table td:nth-child(3) { white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; font-size: .75rem; }
+    .btn-xs { font-size: .66rem !important; padding: 1px 5px !important; }
+    .card-body.p-0 { overflow-x: auto; }
 </style>
 {% endblock %}
 
@@ -134,6 +135,8 @@
                         <th class="text-center">#</th>
                         <th>邮箱</th>
                         <th>家长</th>
+                        <th>密码</th>
+                        <th>2FA 验证码</th>
                         <th class="text-center">状态</th>
                         <th>错误</th>
                         <th>备注</th>
@@ -152,6 +155,23 @@
                             </a>
                         </td>
                         <td><small class="text-muted">{{ m.parent_email }}</small></td>
+                        <td>
+                            <code class="m-pwd" id="mpwd_{{ m.id }}" onclick="copyField(this)" title="点击复制" style="cursor:pointer;font-size:.78rem;padding:2px 6px;border-radius:4px;background:#f3f4f6;">···</code>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center gap-1">
+                                <code class="m-totp" id="mtotp_{{ m.id }}" onclick="copyField(this)" title="点击复制" style="cursor:pointer;font-size:.85rem;font-weight:700;letter-spacing:1px;padding:2px 8px;border-radius:4px;background:#f3f4f6;">------</code>
+                                <div style="width:26px;height:26px;position:relative;">
+                                    <svg width="26" height="26" style="transform:rotate(-90deg);">
+                                        <circle cx="13" cy="13" r="10" fill="none" stroke="#e5e7eb" stroke-width="2.5"/>
+                                        <circle cx="13" cy="13" r="10" fill="none" stroke="#667eea" stroke-width="2.5"
+                                                stroke-dasharray="62.8" stroke-dashoffset="0" stroke-linecap="round"
+                                                id="mring_{{ m.id }}"/>
+                                    </svg>
+                                    <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.55rem;font-weight:700;color:#667eea;" id="msec_{{ m.id }}">-</span>
+                                </div>
+                            </div>
+                        </td>
                         <td class="text-center">
                             <span class="status-pill badge-{{ m.status }}">
                                 <span class="status-dot status-dot-{{ m.status }}"></span>{{ m.status }}
@@ -243,17 +263,30 @@
                     <tr>
                         <td class="text-muted fw-semibold">密码</td>
                         <td>
-                            <code id="pwd_{{ m.id }}" class="text-muted">••••••••</code>
-                            <button class="copy-btn ms-2" onclick="toggleSecret({{ m.id }}, 'pwd_{{ m.id }}', 'password', this)">显示</button>
-                            <button class="copy-btn ms-2" onclick="copySecret({{ m.id }}, 'password', this)">复制</button>
+                            <code class="detail-pwd" id="dpwd_{{ m.id }}" onclick="copyField(this)" title="点击复制" style="cursor:pointer;font-size:.85rem;padding:2px 8px;border-radius:4px;background:#f3f4f6;">加载中...</code>
                         </td>
                     </tr>
                     <tr>
-                        <td class="text-muted fw-semibold">2FA</td>
+                        <td class="text-muted fw-semibold">2FA 密钥</td>
                         <td>
-                            <code id="totp_{{ m.id }}" class="text-muted">••••••••</code>
-                            <button class="copy-btn ms-2" onclick="toggleSecret({{ m.id }}, 'totp_{{ m.id }}', 'totp_secret', this)">显示</button>
-                            <button class="copy-btn ms-2" onclick="copySecret({{ m.id }}, 'totp_secret', this)">复制</button>
+                            <code class="detail-totp-secret" id="dtotp_secret_{{ m.id }}" onclick="copyField(this)" title="点击复制" style="cursor:pointer;font-size:.82rem;padding:2px 8px;border-radius:4px;background:#f3f4f6;word-break:break-all;">加载中...</code>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted fw-semibold">2FA 验证码</td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <code class="detail-totp-code" id="dtotp_code_{{ m.id }}" onclick="copyField(this)" title="点击复制" style="cursor:pointer;font-size:1rem;font-weight:700;letter-spacing:2px;padding:2px 10px;border-radius:4px;background:#f3f4f6;">------</code>
+                                <div style="width:30px;height:30px;position:relative;">
+                                    <svg width="30" height="30" style="transform:rotate(-90deg);">
+                                        <circle cx="15" cy="15" r="12" fill="none" stroke="#e5e7eb" stroke-width="3"/>
+                                        <circle cx="15" cy="15" r="12" fill="none" stroke="#667eea" stroke-width="3"
+                                                stroke-dasharray="75.4" stroke-dashoffset="0" stroke-linecap="round"
+                                                id="dring_{{ m.id }}"/>
+                                    </svg>
+                                    <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;color:#667eea;" id="dsec_{{ m.id }}">-</span>
+                                </div>
+                            </div>
                         </td>
                     </tr>
                     <tr>
@@ -331,33 +364,85 @@
     }
 })();
 
-var _secretCache = {};
-function _fetchSecret(memberId) {
-    if (_secretCache[memberId]) return Promise.resolve(_secretCache[memberId]);
-    return fetch('/member/secret/' + memberId)
-        .then(function(r) { return r.json(); })
-        .then(function(data) { _secretCache[memberId] = data; return data; });
+var MEMBER_IDS = [{% for m in members %}{{ m.id }},{% endfor %}];
+var mtotpData = {};
+
+function copyField(el) {
+    var text = el.innerText.trim();
+    if (!text || text === '------' || text === '···') return;
+    navigator.clipboard.writeText(text).then(function() {
+        var orig = el.style.background;
+        el.style.background = '#d1fae5';
+        setTimeout(function() { el.style.background = orig; }, 600);
+    });
 }
+
+function updateMRing(mid, remaining, interval) {
+    var ring = document.getElementById('mring_' + mid);
+    var sec = document.getElementById('msec_' + mid);
+    if (!ring || !sec) return;
+    var pct = remaining / interval;
+    var offset = 62.8 * (1 - pct);
+    ring.setAttribute('stroke-dashoffset', offset);
+    ring.setAttribute('stroke', remaining <= 5 ? '#ef4444' : '#667eea');
+    sec.textContent = remaining;
+    sec.style.color = remaining <= 5 ? '#ef4444' : '#667eea';
+}
+
+function updateDRing(mid, remaining, interval) {
+    var ring = document.getElementById('dring_' + mid);
+    var sec = document.getElementById('dsec_' + mid);
+    if (!ring || !sec) return;
+    var pct = remaining / interval;
+    var offset = 75.4 * (1 - pct);
+    ring.setAttribute('stroke-dashoffset', offset);
+    ring.setAttribute('stroke', remaining <= 5 ? '#ef4444' : '#667eea');
+    sec.textContent = remaining;
+    sec.style.color = remaining <= 5 ? '#ef4444' : '#667eea';
+}
+
+function fetchMemberSecrets() {
+    MEMBER_IDS.forEach(function(mid) {
+        fetch('/member/secret/' + mid)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var pwdEl = document.getElementById('mpwd_' + mid);
+                if (pwdEl) pwdEl.textContent = data.password || '(空)';
+                var totpEl = document.getElementById('mtotp_' + mid);
+                if (totpEl && data.totp_code) totpEl.textContent = data.totp_code;
+                mtotpData[mid] = { remaining: data.remaining || 0, interval: 30 };
+                updateMRing(mid, data.remaining, 30);
+
+                var dpwd = document.getElementById('dpwd_' + mid);
+                if (dpwd) dpwd.textContent = data.password || '(空)';
+                var dts = document.getElementById('dtotp_secret_' + mid);
+                if (dts) dts.textContent = data.totp_secret || '(空)';
+                var dtc = document.getElementById('dtotp_code_' + mid);
+                if (dtc && data.totp_code) dtc.textContent = data.totp_code;
+                updateDRing(mid, data.remaining, 30);
+            })
+            .catch(function() {});
+    });
+}
+
+setInterval(function() {
+    MEMBER_IDS.forEach(function(mid) {
+        var d = mtotpData[mid];
+        if (!d) return;
+        d.remaining--;
+        if (d.remaining <= 0) { fetchMemberSecrets(); return; }
+        updateMRing(mid, d.remaining, d.interval);
+        updateDRing(mid, d.remaining, d.interval);
+    });
+}, 1000);
+
+fetchMemberSecrets();
+
 function confirmRun() {
     return confirm('请确认已用主号发送了家庭组邀请邮件！\n\n点击「确定」继续执行，点击「取消」停止任务。');
 }
 function confirmAntigravity() {
     return confirm('请确认该成员已经加入家庭组？\n\n点击「确定」将自动生成 OAuth 链接并执行。');
-}
-function toggleSecret(memberId, elId, field, btn) {
-    var el = document.getElementById(elId);
-    if (el.dataset.shown === '1') {
-        el.textContent = '••••••••'; el.dataset.shown = ''; btn.textContent = '显示';
-    } else {
-        _fetchSecret(memberId).then(function(data) {
-            el.textContent = data[field] || '(空)'; el.dataset.shown = '1'; btn.textContent = '隐藏';
-        });
-    }
-}
-function copySecret(memberId, field, btn) {
-    _fetchSecret(memberId).then(function(data) {
-        navigator.clipboard.writeText(data[field] || '').then(function() { flashBtn(btn); });
-    });
 }
 function copyText(text, btn) {
     navigator.clipboard.writeText(text).then(function() { flashBtn(btn); });

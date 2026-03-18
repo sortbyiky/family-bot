@@ -7,8 +7,8 @@
 </div>
 
 <div class="alert alert-info">
-    <i class="bi bi-info-circle me-2"></i>
-    点击下方链接，在 Google 页面中手动完成成员管理操作（需已在 Chrome 中登录对应家长账号）。
+    <i class="bi bi-robot me-2"></i>
+    通过自动化操作管理家庭组，系统会自动登录家长账号并执行对应操作。
 </div>
 
 {% if parents %}
@@ -19,7 +19,8 @@
                 <tr>
                     <th>家长账号</th>
                     <th>昵称</th>
-                    <th>快捷操作</th>
+                    <th class="text-center">成员数</th>
+                    <th>自动化操作</th>
                 </tr>
             </thead>
             <tbody>
@@ -37,18 +38,40 @@
                         </div>
                     </td>
                     <td class="text-muted">{{ p.nickname }}</td>
+                    <td class="text-center">
+                        <span class="badge {% if p.member_count > 0 %}badge-joined{% else %}bg-light text-muted{% endif %} fw-bold">{{ p.member_count }}</span>
+                    </td>
                     <td>
                         <div class="d-flex gap-2 flex-wrap">
-                            <a href="{{ urls.members }}" target="_blank" class="btn btn-outline-primary btn-xs">
-                                <i class="bi bi-people me-1"></i>查看成员 / 踢出
-                            </a>
-                            <a href="{{ urls.invite }}" target="_blank" class="btn btn-outline-success btn-xs">
+                            <form method="POST" action="/family/open/{{ p.id }}/members" class="d-inline">
+                                <button type="submit" class="btn btn-outline-primary btn-xs" title="自动登录并打开成员列表页">
+                                    <i class="bi bi-people me-1"></i>查看成员 / 踢出
+                                </button>
+                            </form>
+                            <button class="btn btn-outline-success btn-xs" data-bs-toggle="modal" data-bs-target="#inviteModal{{ p.id }}" title="自动邀请成员">
                                 <i class="bi bi-person-plus me-1"></i>邀请成员
-                            </a>
-                            <a href="{{ urls.settings }}" target="_blank" class="btn btn-outline-secondary btn-xs">
-                                <i class="bi bi-gear me-1"></i>家庭组设置
-                            </a>
+                            </button>
+                            <form method="POST" action="/family/open/{{ p.id }}/settings" class="d-inline">
+                                <button type="submit" class="btn btn-outline-secondary btn-xs" title="自动登录并打开家庭组设置">
+                                    <i class="bi bi-gear me-1"></i>家庭组设置
+                                </button>
+                            </form>
                         </div>
+                        {% if p.members is defined and p.members %}
+                        <div class="mt-2">
+                            <small class="text-muted d-block mb-1">快速踢出:</small>
+                            <div class="d-flex gap-1 flex-wrap">
+                                {% for m in p.members %}
+                                <form method="POST" action="/family/kick/{{ p.id }}" class="d-inline" onsubmit="return confirm('确定踢出 {{ m.email }}？')">
+                                    <input type="hidden" name="member_email" value="{{ m.email }}">
+                                    <button type="submit" class="btn btn-outline-danger" style="font-size:.72rem;padding:1px 6px;" title="踢出 {{ m.email }}">
+                                        <i class="bi bi-x-circle me-1"></i>{{ m.email.split('@')[0] }}
+                                    </button>
+                                </form>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -57,9 +80,39 @@
     </div>
 </div>
 
+<!-- 邀请成员弹窗 -->
+{% for p in parents %}
+<div class="modal fade" id="inviteModal{{ p.id }}" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title"><i class="bi bi-person-plus text-success me-2"></i>邀请成员 — {{ p.email }}</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="/family/invite/{{ p.id }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">被邀请人邮箱</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white"><i class="bi bi-envelope"></i></span>
+                            <input type="email" name="invite_email" class="form-control" required placeholder="member@gmail.com">
+                        </div>
+                        <div class="form-text">系统将自动登录家长账号，打开邀请页面并发送邀请。</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-success btn-sm"><i class="bi bi-send me-1"></i>发送邀请</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
 <div class="card mt-3">
     <div class="card-body py-3">
-        <div class="fw-semibold mb-2 text-muted" style="font-size:.85rem;"><i class="bi bi-link-45deg me-1"></i>Google 家庭组相关链接</div>
+        <div class="fw-semibold mb-2 text-muted" style="font-size:.85rem;"><i class="bi bi-link-45deg me-1"></i>Google 家庭组相关链接（手动跳转）</div>
         <div class="d-flex gap-2 flex-wrap">
             <a href="{{ urls.members }}" target="_blank" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-people me-1"></i>成员列表 & 踢出

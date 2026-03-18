@@ -55,10 +55,9 @@
                     <tr>
                         <th>家长账号</th>
                         <th>昵称</th>
-                        <th class="text-center">成员上限</th>
-                        <th class="text-center">当前成员</th>
-                        <th class="text-center">凭据</th>
-                        <th>创建时间</th>
+                        <th class="text-center">成员</th>
+                        <th>密码</th>
+                        <th>2FA 验证码</th>
                         <th class="text-center">操作</th>
                     </tr>
                 </thead>
@@ -77,18 +76,38 @@
                             </div>
                         </td>
                         <td class="text-muted">{{ p.nickname }}</td>
-                        <td class="text-center"><span class="badge bg-light text-dark fw-bold">{{ p.max_members }}</span></td>
                         <td class="text-center">
-                            <span class="badge {% if p.member_count > 0 %}badge-joined{% else %}bg-light text-muted{% endif %} fw-bold">{{ p.member_count }}</span>
+                            <span class="badge {% if p.member_count > 0 %}badge-joined{% else %}bg-light text-muted{% endif %} fw-bold">{{ p.member_count }}/{{ p.max_members }}</span>
                         </td>
-                        <td class="text-center">
+                        <!-- 密码列 -->
+                        <td>
                             {% if p.has_creds %}
-                            <span class="badge bg-success" title="已配置密码和2FA"><i class="bi bi-shield-check"></i> 已配置</span>
+                            <code class="pwd-field" id="pwd_{{ p.id }}" onclick="copyField(this)" title="点击复制" style="cursor:pointer;font-size:.85rem;padding:2px 8px;border-radius:4px;background:#f3f4f6;">加载中...</code>
                             {% else %}
-                            <span class="badge bg-warning text-dark" title="未配置登录凭据"><i class="bi bi-shield-exclamation"></i> 未配置</span>
+                            <span class="text-muted" style="font-size:.8rem;">未配置</span>
                             {% endif %}
                         </td>
-                        <td><small class="text-muted">{{ p.created_at }}</small></td>
+                        <!-- 2FA 验证码列 -->
+                        <td>
+                            {% if p.has_creds %}
+                            <div class="d-flex align-items-center gap-2">
+                                <code class="totp-code" id="totp_{{ p.id }}" onclick="copyField(this)" title="点击复制" style="cursor:pointer;font-size:1rem;font-weight:700;letter-spacing:2px;padding:2px 10px;border-radius:4px;background:#f3f4f6;">------</code>
+                                <div class="d-flex align-items-center gap-1" style="min-width:50px;">
+                                    <div class="totp-timer" id="timer_{{ p.id }}" style="width:30px;height:30px;position:relative;">
+                                        <svg width="30" height="30" style="transform:rotate(-90deg);">
+                                            <circle cx="15" cy="15" r="12" fill="none" stroke="#e5e7eb" stroke-width="3"/>
+                                            <circle cx="15" cy="15" r="12" fill="none" stroke="#667eea" stroke-width="3"
+                                                    stroke-dasharray="75.4" stroke-dashoffset="0" stroke-linecap="round"
+                                                    id="ring_{{ p.id }}"/>
+                                        </svg>
+                                        <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;color:#667eea;" id="sec_{{ p.id }}">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                            {% else %}
+                            <span class="text-muted" style="font-size:.8rem;">未配置</span>
+                            {% endif %}
+                        </td>
                         <td class="text-center">
                             <div class="d-flex gap-1 justify-content-center flex-wrap">
                                 <a href="/family/{{ p.id }}/members" class="btn btn-outline-primary btn-xs" title="管理家庭组">
@@ -115,7 +134,7 @@
     </div>
 </div>
 
-<!-- 编辑凭据弹窗 -->
+<!-- 编辑凭据弹窗 + 删除确认弹窗 -->
 {% for p in parents %}
 <div class="modal fade" id="editModal{{ p.id }}" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
@@ -132,19 +151,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Google 密码</label>
-                        <div class="input-group">
-                            <input type="password" name="password" id="pwd_edit_{{ p.id }}" class="form-control" placeholder="留空则不修改" autocomplete="new-password">
-                            <button type="button" class="btn btn-outline-secondary" onclick="togglePwdEdit('pwd_edit_{{ p.id }}')">
-                                <i class="bi bi-eye"></i>
-                            </button>
-                        </div>
-                        {% if p.has_creds %}
-                        <div class="form-text">
-                            <span class="text-success"><i class="bi bi-check-circle me-1"></i>当前已配置密码</span>
-                            <button type="button" class="btn btn-link btn-sm p-0 ms-2" onclick="loadSecret({{ p.id }})">查看当前密码</button>
-                        </div>
-                        <div id="secret_{{ p.id }}" class="form-text text-muted" style="display:none;"></div>
-                        {% endif %}
+                        <input type="password" name="password" class="form-control" placeholder="留空则不修改" autocomplete="new-password">
                     </div>
                     <div class="mb-0">
                         <label class="form-label fw-semibold">2FA 密钥 (TOTP)</label>
@@ -160,8 +167,6 @@
         </div>
     </div>
 </div>
-
-<!-- 删除确认弹窗 -->
 <div class="modal fade" id="delModal{{ p.id }}" tabindex="-1">
     <div class="modal-dialog modal-sm modal-dialog-centered">
         <div class="modal-content">
@@ -194,23 +199,73 @@
     </div>
 </div>
 {% endif %}
+{% endblock %}
 
+{% block extra_js %}
 <script>
-function togglePwdEdit(id) {
-    const inp = document.getElementById(id);
-    inp.type = inp.type === 'password' ? 'text' : 'password';
+const PARENT_IDS = [{% for p in parents %}{% if p.has_creds %}{{ p.id }},{% endif %}{% endfor %}];
+const totpData = {};
+
+function copyField(el) {
+    const text = el.innerText.trim();
+    if (!text || text === '------' || text === '加载中...') return;
+    navigator.clipboard.writeText(text).then(() => {
+        const orig = el.style.background;
+        el.style.background = '#d1fae5';
+        setTimeout(() => { el.style.background = orig; }, 600);
+    });
 }
 
-function loadSecret(parentId) {
-    const el = document.getElementById('secret_' + parentId);
-    el.style.display = 'block';
-    el.textContent = '加载中...';
-    fetch('/parent/secret/' + parentId)
-        .then(r => r.json())
-        .then(data => {
-            el.innerHTML = '密码: <code>' + (data.password || '(空)') + '</code>  2FA: <code>' + (data.totp_secret || '(空)') + '</code>';
-        })
-        .catch(() => { el.textContent = '加载失败'; });
+function updateRing(pid, remaining, interval) {
+    const ring = document.getElementById('ring_' + pid);
+    const sec = document.getElementById('sec_' + pid);
+    if (!ring || !sec) return;
+    const pct = remaining / interval;
+    const offset = 75.4 * (1 - pct);
+    ring.setAttribute('stroke-dashoffset', offset);
+    ring.setAttribute('stroke', remaining <= 5 ? '#ef4444' : '#667eea');
+    sec.textContent = remaining;
+    sec.style.color = remaining <= 5 ? '#ef4444' : '#667eea';
 }
+
+function fetchSecrets() {
+    PARENT_IDS.forEach(pid => {
+        fetch('/parent/secret/' + pid)
+            .then(r => r.json())
+            .then(data => {
+                const pwdEl = document.getElementById('pwd_' + pid);
+                if (pwdEl) pwdEl.textContent = data.password || '(空)';
+
+                const totpEl = document.getElementById('totp_' + pid);
+                if (totpEl && data.totp_code) {
+                    totpEl.textContent = data.totp_code;
+                }
+                totpData[pid] = {
+                    remaining: data.remaining || 0,
+                    interval: 30,
+                    code: data.totp_code || ''
+                };
+                updateRing(pid, data.remaining, 30);
+            })
+            .catch(() => {});
+    });
+}
+
+// 每秒倒计时 + 到 0 时重新拉取
+setInterval(() => {
+    PARENT_IDS.forEach(pid => {
+        const d = totpData[pid];
+        if (!d) return;
+        d.remaining--;
+        if (d.remaining <= 0) {
+            fetchSecrets();
+            return;
+        }
+        updateRing(pid, d.remaining, d.interval);
+    });
+}, 1000);
+
+// 页面加载立即拉取
+fetchSecrets();
 </script>
 {% endblock %}

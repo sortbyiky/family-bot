@@ -39,6 +39,7 @@ def create_app():
     from web.routes.config import bp as config_bp
     from web.routes.sms import bp as sms_bp
     from web.routes.family import bp as family_bp
+    from web.routes.age_verify import bp as age_verify_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -48,6 +49,7 @@ def create_app():
     app.register_blueprint(config_bp, url_prefix="/config")
     app.register_blueprint(sms_bp, url_prefix="/sms")
     app.register_blueprint(family_bp, url_prefix="/family")
+    app.register_blueprint(age_verify_bp, url_prefix="/age-verify")
 
     @app.errorhandler(404)
     def not_found(e):

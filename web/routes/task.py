@@ -88,3 +88,22 @@ def clear_tasks():
     count = task_manager.clear_finished_tasks()
     flash(f"已清理 {count} 个已完成任务", "success") if count else flash("没有可清理的任务", "info")
     return redirect(url_for("task.list_tasks"))
+
+
+@bp.route("/cancel/<task_id>", methods=["POST"])
+def cancel_task(task_id):
+    if task_manager.cancel_task(task_id):
+        flash(f"任务 {task_id} 已取消", "success")
+    else:
+        flash(f"任务 {task_id} 无法取消（可能已完成或不存在）", "warning")
+    return redirect(url_for("task.list_tasks"))
+
+
+@bp.route("/cancel_all", methods=["POST"])
+def cancel_all():
+    count = task_manager.cancel_all_running()
+    if count:
+        flash(f"已取消 {count} 个运行中的任务", "success")
+    else:
+        flash("没有正在运行的任务", "info")
+    return redirect(url_for("task.list_tasks"))

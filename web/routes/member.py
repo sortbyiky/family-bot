@@ -262,14 +262,33 @@ def export_members():
 
 @bp.route("/secret/<int:member_id>")
 def get_secret(member_id):
-    """按需返回成员的解密密码和 TOTP 密钥（不再嵌入 HTML 页面源码）"""
+    """返回成员的解密密码、TOTP 密钥、实时验证码和剩余秒数"""
+    import time
+    import pyotp
+
     with get_session() as session:
         m = session.get(Member, member_id)
         if not m:
             return jsonify({"error": "成员不存在"}), 404
+
+        password = decrypt_safe(m.password) if m.password else ""
+        totp_secret = decrypt_safe(m.totp_secret) if m.totp_secret else ""
+
+        totp_code = ""
+        remaining = 0
+        if totp_secret:
+            try:
+                totp = pyotp.TOTP(totp_secret)
+                totp_code = totp.now()
+                remaining = totp.interval - (int(time.time()) % totp.interval)
+            except Exception:
+                totp_code = "密钥无效"
+
         return jsonify({
-            "password": decrypt_safe(m.password) if m.password else "",
-            "totp_secret": decrypt_safe(m.totp_secret) if m.totp_secret else "",
+            "password": password,
+            "totp_secret": totp_secret,
+            "totp_code": totp_code,
+            "remaining": remaining,
         })
 
 
@@ -317,7 +336,13 @@ def antigravity(member_id):
             flash("成员不存在", "danger")
             return _back_to_list()
 
-        oauth_url = generate_oauth_url()
+        try:
+            oauth_url = generate_oauth_url()
+        except Exception as e:
+            logger.exception("获取 OAuth 链接失败: member=%s", member.email)
+            flash(f"获取 OAuth 链接失败: {e}", "danger")
+            return _back_to_list()
+
         task_id = task_manager.run_antigravity(member.id, member.email, oauth_url)
         flash(f"Antigravity 任务已启动: {member.email} (任务ID: {task_id})", "info")
     return _back_to_list()

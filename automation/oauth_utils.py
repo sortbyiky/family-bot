@@ -141,12 +141,18 @@ def submit_code_to_api(callback_url: str) -> dict:
 
 
 def _submit_code_antigravity(cfg: dict, callback_url: str) -> dict:
-    """将回调 URL 提交给 Antigravity Manager API"""
+    """将回调 URL 中的授权码提交给 Antigravity Manager API"""
     api_url = cfg.get("antigravity_api_url", "").rstrip("/")
     api_key = cfg.get("antigravity_api_key", "")
 
     if not api_url:
         raise RuntimeError("未配置 antigravity_api_url")
+
+    parsed = urlparse(callback_url)
+    qs = parse_qs(parsed.query)
+    code = qs.get("code", [None])[0]
+    if not code:
+        raise RuntimeError(f"回调 URL 中没有 code 参数: {callback_url}")
 
     submit_url = f"{api_url}/api/accounts/oauth/submit-code"
     headers = {
@@ -155,7 +161,7 @@ def _submit_code_antigravity(cfg: dict, callback_url: str) -> dict:
         "x-api-key": api_key,
     }
     payload = {
-        "code": callback_url,
+        "code": code,
     }
 
     logger.info("提交回调到 API: %s", submit_url)

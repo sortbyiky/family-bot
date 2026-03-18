@@ -64,9 +64,14 @@
     <div class="card-body p-0">
         <div class="d-flex justify-content-between align-items-center px-4 pt-3 pb-2">
             <h6 class="fw-bold text-secondary mb-0"><i class="bi bi-list-task me-2"></i>任务状态</h6>
-            <form method="POST" action="/task/clear" class="d-inline">
-                <button type="submit" class="btn btn-outline-danger btn-xs"><i class="bi bi-trash3 me-1"></i>清理已完成</button>
-            </form>
+            <div class="d-flex gap-2">
+                <form method="POST" action="/task/cancel_all" class="d-inline" onsubmit="return confirm('确定取消所有运行中的任务？')">
+                    <button type="submit" class="btn btn-outline-warning btn-xs"><i class="bi bi-stop-circle me-1"></i>全部取消</button>
+                </form>
+                <form method="POST" action="/task/clear" class="d-inline">
+                    <button type="submit" class="btn btn-outline-danger btn-xs"><i class="bi bi-trash3 me-1"></i>清理已完成</button>
+                </form>
+            </div>
         </div>
         <div class="table-responsive">
             <table class="table table-hover mb-0" id="taskTable">
@@ -80,6 +85,7 @@
                         <th>开始</th>
                         <th>结束</th>
                         <th>错误</th>
+                        <th class="text-center">操作</th>
                     </tr>
                 </thead>
                 <tbody id="taskBody">
@@ -107,9 +113,16 @@
                         <td><small class="text-muted">{{ t.started_at }}</small></td>
                         <td><small class="text-muted">{{ t.finished_at or '-' }}</small></td>
                         <td><small class="text-danger">{{ t.error or '' }}</small></td>
+                        <td class="text-center">
+                            {% if t.status == 'running' %}
+                            <form method="POST" action="/task/cancel/{{ tid }}" class="d-inline" onsubmit="return confirm('确定取消此任务？')">
+                                <button type="submit" class="btn btn-outline-warning" style="font-size:.7rem;padding:2px 8px;"><i class="bi bi-stop-circle me-1"></i>取消</button>
+                            </form>
+                            {% else %}-{% endif %}
+                        </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="8" class="text-center text-muted py-4"><i class="bi bi-inbox me-2"></i>暂无任务记录</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-inbox me-2"></i>暂无任务记录</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -129,7 +142,7 @@ setInterval(function() {
         const tbody = document.getElementById('taskBody');
         const entries = Object.entries(data);
         if (entries.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4"><i class="bi bi-inbox me-2"></i>暂无任务记录</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-inbox me-2"></i>暂无任务记录</td></tr>';
             return;
         }
         entries.forEach(([tid, t]) => {
@@ -154,7 +167,8 @@ setInterval(function() {
                 '<td class="text-center">' + progress + '</td>' +
                 '<td><small class="text-muted">' + t.started_at + '</small></td>' +
                 '<td><small class="text-muted">' + (t.finished_at || '-') + '</small></td>' +
-                '<td><small class="text-danger">' + (t.error || '') + '</small></td></tr>';
+                '<td><small class="text-danger">' + (t.error || '') + '</small></td>' +
+                '<td class="text-center">' + (t.status === 'running' ? '<form method="POST" action="/task/cancel/' + tid + '" class="d-inline" onsubmit="return confirm(\'确定取消此任务？\')"><button type="submit" class="btn btn-outline-warning" style="font-size:.7rem;padding:2px 8px;"><i class="bi bi-stop-circle me-1"></i>取消</button></form>' : '-') + '</td></tr>';
         });
         tbody.innerHTML = html;
     }).catch(() => {});

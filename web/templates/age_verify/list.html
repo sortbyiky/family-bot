@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+{% block title %}年龄认证 - Family Bot{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+    <h4><i class="bi bi-shield-check me-2"></i>Google 年龄认证（手动）</h4>
+</div>
+
+<!-- 卡片信息区域（明文展示） -->
+<div class="card mb-4">
+    <div class="card-header d-flex align-items-center justify-content-between py-3" style="background:#f8f9fb;">
+        <span class="fw-bold"><i class="bi bi-credit-card me-2"></i>卡片信息（点击即可复制）</span>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addCardModal">
+                <i class="bi bi-plus-lg me-1"></i>添加卡片
+            </button>
+            <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#importCardModal">
+                <i class="bi bi-upload me-1"></i>批量导入
+            </button>
+            {% if cards %}
+            <form method="POST" action="{{ url_for('age_verify.clear_cards') }}" class="d-inline"
+                  onsubmit="return confirm('确认清空所有卡片？')">
+                <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash me-1"></i>清空</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body p-0">
+        {% if cards %}
+        {% for card in cards %}
+        <div class="border-bottom p-3 {% if not loop.last %}{% endif %}">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="fw-bold" style="font-size:.95rem;">
+                    <i class="bi bi-credit-card-2-front me-1 text-primary"></i>卡片 {{ loop.index }}
+                </span>
+                <form method="POST" action="{{ url_for('age_verify.delete_card', card_idx=loop.index0) }}"
+                      class="d-inline" onsubmit="return confirm('删除这张卡片？')">
+                    <button class="btn btn-outline-danger btn-xs"><i class="bi bi-trash"></i> 删除</button>
+                </form>
+            </div>
+            <div class="row g-2">
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="text-muted" style="font-size:.8rem;min-width:70px;">持卡人</span>
+                        <code class="copy-field" onclick="copyText(this)" title="点击复制" style="cursor:pointer;font-size:.9rem;">{{ card.name }}</code>
+                        <i class="bi bi-clipboard text-muted" style="font-size:.75rem;"></i>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="text-muted" style="font-size:.8rem;min-width:70px;">卡号</span>
+                        <code class="copy-field" onclick="copyText(this)" title="点击复制" style="cursor:pointer;font-size:.9rem;">{{ card.card_number }}</code>
+                        <i class="bi bi-clipboard text-muted" style="font-size:.75rem;"></i>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="text-muted" style="font-size:.8rem;min-width:70px;">过期时间</span>
+                        <code class="copy-field" onclick="copyText(this)" title="点击复制" style="cursor:pointer;font-size:.9rem;">{{ card.expiry }}</code>
+                        <i class="bi bi-clipboard text-muted" style="font-size:.75rem;"></i>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="text-muted" style="font-size:.8rem;min-width:70px;">CVV</span>
+                        <code class="copy-field" onclick="copyText(this)" title="点击复制" style="cursor:pointer;font-size:.9rem;">{{ card.cvv }}</code>
+                        <i class="bi bi-clipboard text-muted" style="font-size:.75rem;"></i>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="text-muted" style="font-size:.8rem;min-width:70px;">邮编</span>
+                        <code class="copy-field" onclick="copyText(this)" title="点击复制" style="cursor:pointer;font-size:.9rem;">{{ card.zip_code or '-' }}</code>
+                        <i class="bi bi-clipboard text-muted" style="font-size:.75rem;"></i>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="text-muted" style="font-size:.8rem;min-width:70px;">国家</span>
+                        <code class="copy-field" onclick="copyText(this)" title="点击复制" style="cursor:pointer;font-size:.9rem;">{{ card.country or 'US' }}</code>
+                        <i class="bi bi-clipboard text-muted" style="font-size:.75rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="empty-state py-4">
+            <i class="bi bi-credit-card-2-front"></i>
+            <p>还没有添加任何卡片</p>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addCardModal">
+                <i class="bi bi-plus-lg me-1"></i>添加第一张卡片
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 成员列表：点击启动浏览器 -->
+<div class="card mb-4">
+    <div class="card-header py-3" style="background:#f8f9fb;">
+        <span class="fw-bold"><i class="bi bi-people me-2"></i>选择成员 → 自动登录并跳转年龄认证页面</span>
+    </div>
+    <div class="card-body p-0">
+        {% if members %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>邮箱</th>
+                        <th>所属家长</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in members %}
+                    <tr>
+                        <td><code>{{ m.email }}</code></td>
+                        <td class="text-muted">{{ m.parent_email }}</td>
+                        <td>
+                            <span class="status-dot status-dot-{{ m.status }}"></span>
+                            <span class="badge badge-{{ m.status }}">{{ m.status }}</span>
+                        </td>
+                        <td>
+                            <form method="POST" action="{{ url_for('age_verify.run_verify', member_id=m.id) }}" class="d-inline">
+                                <button class="btn btn-primary btn-xs" title="登录并跳转到年龄认证页面">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i>年龄认证
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state py-4">
+            <i class="bi bi-person-x"></i>
+            <p>还没有成员，请先在「成员」页面添加</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 任务状态 -->
+{% if age_tasks %}
+<div class="card mb-4">
+    <div class="card-header py-3" style="background:#f8f9fb;">
+        <span class="fw-bold"><i class="bi bi-list-task me-2"></i>认证任务</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>邮箱</th>
+                        <th>状态</th>
+                        <th>开始时间</th>
+                        <th>说明</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tid, t in age_tasks.items() %}
+                    <tr>
+                        <td>{{ t.email }}</td>
+                        <td>
+                            <span class="status-dot status-dot-{{ t.status }}"></span>
+                            <span class="badge badge-{{ t.status }}">{{ t.status }}</span>
+                        </td>
+                        <td class="text-muted" style="font-size:.85rem;">{{ t.started_at or '-' }}</td>
+                        <td style="font-size:.85rem;">
+                            {% if t.status == 'running' %}
+                            <span class="text-info"><i class="bi bi-cursor me-1"></i>浏览器已打开，请手动填写卡片</span>
+                            {% elif t.status == 'done' %}
+                            <span class="text-success"><i class="bi bi-check-circle me-1"></i>浏览器已关闭</span>
+                            {% elif t.error %}
+                            <span class="text-danger">{{ t.error }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- 添加卡片 Modal -->
+<div class="modal fade" id="addCardModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('age_verify.add_card') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-credit-card me-2"></i>添加卡片</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">持卡人姓名 <span class="text-danger">*</span></label>
+                        <input type="text" name="name" class="form-control" placeholder="Emily Johnson" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">卡号 <span class="text-danger">*</span></label>
+                        <input type="text" name="card_number" class="form-control" placeholder="5534373776450343" required>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label">过期时间 <span class="text-danger">*</span></label>
+                            <input type="text" name="expiry" class="form-control" placeholder="06/28" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">CVV <span class="text-danger">*</span></label>
+                            <input type="text" name="cvv" class="form-control" placeholder="281" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">邮编</label>
+                        <input type="text" name="zip_code" class="form-control" placeholder="19801">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">国家代码</label>
+                        <input type="text" name="country" class="form-control" placeholder="US" value="US">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>添加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 批量导入 Modal -->
+<div class="modal fade" id="importCardModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('age_verify.import_cards') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-upload me-2"></i>批量导入卡片</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info py-2" style="font-size:.85rem;">
+                        <i class="bi bi-info-circle me-1"></i>
+                        每行一张卡片，格式：<code>姓名|卡号|CVV|过期时间|邮编|国家代码</code><br>
+                        邮编和国家代码可省略，也支持 <code>----</code> 分隔
+                    </div>
+                    <textarea name="cards_data" class="form-control" rows="6"
+                        placeholder="Emily Johnson|5534373776450343|281|06/28|19801|US"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-upload me-1"></i>导入</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyText(el) {
+    const text = el.innerText.trim();
+    if (!text || text === '-') return;
+    navigator.clipboard.writeText(text).then(() => {
+        const original = el.style.background;
+        el.style.background = '#d1fae5';
+        el.title = '已复制!';
+        setTimeout(() => {
+            el.style.background = original;
+            el.title = '点击复制';
+        }, 800);
+    });
+}
+</script>
+
+<style>
+.copy-field {
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #f3f4f6;
+    transition: background .2s;
+    user-select: all;
+}
+.copy-field:hover {
+    background: #e0e7ff;
+}
+</style>
+{% endblock %}
